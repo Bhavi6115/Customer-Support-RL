@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
 import gradio as gr
+from gradio.routes import App as GradioApp
 import httpx
-import asyncio
 import os
+import random
 import pickle
 import numpy as np
 from models import Action, Observation
@@ -28,7 +28,7 @@ def agent_choose_action(state):
         return actions[best_action_idx]
     return actions[0]
 
-# ---------- Environment state (same as before) ----------
+# ---------- Environment state ----------
 INTENTS = {
     "refund": {
         "query": "I need a refund for my order #12345",
@@ -53,10 +53,10 @@ conversation_history = []
 # ---------- FastAPI app ----------
 app = FastAPI(title="Customer Support RL Environment")
 
+# ----- API Endpoints -----
 @app.post("/reset")
 async def reset():
     global current_intent, correct_sequence, current_step, current_query, conversation_history
-    import random
     current_intent = random.choice(list(INTENTS.keys()))
     correct_sequence = INTENTS[current_intent]["sequence"]
     current_query = INTENTS[current_intent]["query"]
@@ -121,9 +121,8 @@ async def get_state():
 async def health_check():
     return {"status": "healthy"}
 
-# ---------- Gradio Dashboard Functions ----------
+# ---------- Gradio Dashboard ----------
 def interact(action, auto_mode=False):
-    import httpx
     with httpx.Client(timeout=30.0) as client:
         if action == "Reset":
             resp = client.post("http://localhost:8000/reset", json={})
@@ -140,7 +139,6 @@ def interact(action, auto_mode=False):
             status = f"Reward: {reward}  |  Stage: {obs['stage']}  |  Intent: {intent}"
             next_action = ""
             if auto_mode and not terminated:
-                # Create a state dict for agent
                 state_dict = {
                     "query": obs["query"],
                     "stage": obs["stage"],
@@ -150,7 +148,6 @@ def interact(action, auto_mode=False):
             return obs["query"], status, obs["history"], next_action
 
 def reset_and_agent_run():
-    import httpx
     with httpx.Client(timeout=30.0) as client:
         client.post("http://localhost:8000/reset", json={})
         total_reward = 0
@@ -176,7 +173,6 @@ def reset_and_agent_run():
         history_log.append(f"\n## 🎉 **Total Reward: {total_reward}**")
         return "\n".join(history_log)
 
-# Build Gradio UI
 with gr.Blocks(title="Customer Support RL Environment", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🤖 Customer Support RL Environment")
     gr.Markdown("### Train an AI to resolve customer issues using Reinforcement Learning")
@@ -205,10 +201,11 @@ with gr.Blocks(title="Customer Support RL Environment", theme=gr.themes.Soft()) 
     auto_run_btn.click(reset_and_agent_run, inputs=[], outputs=[auto_output])
     demo.load(lambda: interact("Reset", False), outputs=[output_query, output_reward, output_history, output_next_action])
 
-# Mount Gradio at the root path
-app = gr.mount_gradio_app(app, demo, path="/")
+# Mount Gradio app at root
+gradio_app = GradioApp.create_app(demo)
+app.mount("/", gradio_app)
 
-# ---------- Run with uvicorn ----------
+# ---------- Run ----------
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 8000))
