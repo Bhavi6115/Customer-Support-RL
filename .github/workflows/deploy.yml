@@ -27,5 +27,6 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
+          cd customer_support_env
           python -m openenv.cli build
           python -m openenv.cli push --token $HF_TOKEN
