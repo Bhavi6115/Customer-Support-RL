@@ -24,6 +24,7 @@ jobs:
         run: |
           pip install openenv-core
           pip install huggingface_hub
+          pip install huggingface-hub[cli]
 
       - name: Authenticate with Hugging Face
         run: huggingface-cli login --token ${{ secrets.HF_TOKEN }}
