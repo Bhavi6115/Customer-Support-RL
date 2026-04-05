@@ -1,0 +1,7 @@
+__pycache__/
+.venv/
+.gradio/
+*.pyc
+*.pkl
+uv.lock
+openenv_customer_s*/

@@ -1,0 +1,13 @@
+name: customer-support-env
+version: 0.1.0
+description: "A customer support environment for RL agents"
+
+# Docker build configuration
+build:
+  dockerfile: server/Dockerfile
+  context: .
+
+# Server configuration
+server:
+  app: server.app:app
+  port: 8000
