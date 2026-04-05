@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 import gradio as gr
-from gradio.routes import App as GradioApp
 import httpx
 import os
 import random
@@ -8,7 +7,7 @@ import pickle
 import numpy as np
 from models import Action, Observation
 
-# ---------- Load Trained Agent (optional) ----------
+# ---------- Load Trained Agent ----------
 trained_q_table = None
 actions = ["/refund", "/verify_purchase", "/process_refund", "/escalate", "/invalid"]
 
@@ -173,6 +172,7 @@ def reset_and_agent_run():
         history_log.append(f"\n## 🎉 **Total Reward: {total_reward}**")
         return "\n".join(history_log)
 
+# Build Gradio interface
 with gr.Blocks(title="Customer Support RL Environment", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🤖 Customer Support RL Environment")
     gr.Markdown("### Train an AI to resolve customer issues using Reinforcement Learning")
@@ -201,9 +201,8 @@ with gr.Blocks(title="Customer Support RL Environment", theme=gr.themes.Soft()) 
     auto_run_btn.click(reset_and_agent_run, inputs=[], outputs=[auto_output])
     demo.load(lambda: interact("Reset", False), outputs=[output_query, output_reward, output_history, output_next_action])
 
-# Mount Gradio app at root
-gradio_app = GradioApp.create_app(demo)
-app.mount("/", gradio_app)
+# Mount Gradio at root (official method)
+app = gr.mount_gradio_app(app, demo, path="/")
 
 # ---------- Run ----------
 if __name__ == "__main__":
