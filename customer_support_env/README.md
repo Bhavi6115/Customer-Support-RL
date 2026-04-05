@@ -1,210 +1,255 @@
-# 🤖 Customer Support RL Environment
-
-**Meta PyTorch OpenEnv Hackathon 2026 – Round 1 Submission**
-
-A production‑ready Reinforcement Learning environment where an AI agent learns to resolve customer service issues (refunds, technical support, order status). Built with FastAPI, compliant with the OpenEnv specification, and fully containerized with Docker.
-
-[![OpenEnv](https://img.shields.io/badge/OpenEnv-Compatible-green)](https://github.com/facebookresearch/openenv)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-blue)](https://fastapi.tiangolo.com/)
-[![Gradio](https://img.shields.io/badge/Gradio-4.44-orange)](https://gradio.app/)
-
+---
+title: Customer Support Env Environment Server
+emoji: 🏐
+colorFrom: indigo
+colorTo: indigo
+sdk: docker
+pinned: false
+app_port: 8000
+base_path: /web
+tags:
+  - openenv
 ---
 
-## 📌 Table of Contents
+# Customer Support Env Environment
 
-- [Overview](#overview)
-- [Environment Spec](#environment-spec)
-- [Installation](#installation)
-- [Run Locally](#run-locally)
-- [Testing (Grader)](#testing-grader)
-- [Train an Agent](#train-an-agent)
-- [Dashboard](#dashboard)
-- [Docker & Deployment](#docker--deployment)
-- [Project Structure](#project-structure)
-- [Hackathon Submission](#hackathon-submission)
+A simple test environment that echoes back messages. Perfect for testing the env APIs as well as demonstrating environment usage patterns.
 
----
+## Quick Start
 
-## 🎯 Overview
+The simplest way to use the Customer Support Env environment is through the `CustomerSupportEnv` class:
 
-The environment simulates a **customer service chatbot**. The agent must choose the correct sequence of actions to resolve a randomly selected customer intent:
+```python
+from customer_support_env import CustomerSupportAction, CustomerSupportEnv
 
-| Intent | Correct Sequence |
-|--------|------------------|
-| Refund | `/refund` → `/verify_purchase` → `/process_refund` |
-| Technical | `/troubleshoot` → `/ask_os_version` → `/escalate_to_tech` |
-| Order Status | `/track_order` → `/check_shipping` → `/offer_compensation` |
+try:
+    # Create environment from Docker image
+    customer_support_envenv = CustomerSupportEnv.from_docker_image("customer_support_env-env:latest")
 
-At each reset, one intent is chosen at random. The agent learns to generalise across tasks.
+    # Reset
+    result = customer_support_envenv.reset()
+    print(f"Reset: {result.observation.echoed_message}")
 
----
+    # Send multiple messages
+    messages = ["Hello, World!", "Testing echo", "Final message"]
 
-## 🧠 Environment Spec
+    for msg in messages:
+        result = customer_support_envenv.step(CustomerSupportAction(message=msg))
+        print(f"Sent: '{msg}'")
+        print(f"  → Echoed: '{result.observation.echoed_message}'")
+        print(f"  → Length: {result.observation.message_length}")
+        print(f"  → Reward: {result.reward}")
 
-### Observation (what the agent sees)
-```json
+finally:
+    # Always clean up
+    customer_support_envenv.close()
+```
 
-  "query": "I need a refund for my order #12345",
-  "history": "Conversation started.\nAgent: /refund\nSystem: Correct. Next step: /verify_purchase",
-  "stage": "in_progress"
+That's it! The `CustomerSupportEnv.from_docker_image()` method handles:
+- Starting the Docker container
+- Waiting for the server to be ready
+- Connecting to the environment
+- Container cleanup when you call `close()`
 
-Action (what the agent can do)
-Any string command, but the environment recognises:
+## Building the Docker Image
 
-Correct‑sequence actions (listed above)
+Before using the environment, you need to build the Docker image:
 
-/escalate (gives up)
+```bash
+# From project root
+docker build -t customer_support_env-env:latest -f server/Dockerfile .
+```
 
-/invalid (any other – used for testing)
+## Deploying to Hugging Face Spaces
 
-Reward Logic
-Scenario	Reward
-Correct step in sequence	+1
-Full resolution (last correct action)	+10
-Invalid action	-2
-Escalation (/escalate)	-5
-API Endpoints (OpenEnv compliant)
-POST /reset → initial observation
+You can easily deploy your OpenEnv environment to Hugging Face Spaces using the `openenv push` command:
 
-POST /step → takes {"action_value": "..."} → returns (observation, reward, terminated, truncated, info)
+```bash
+# From the environment directory (where openenv.yaml is located)
+openenv push
 
-GET /state → full internal state (intent, current step, history, etc.)
+# Or specify options
+openenv push --namespace my-org --private
+```
 
-GET /health → {"status": "healthy"}
+The `openenv push` command will:
+1. Validate that the directory is an OpenEnv environment (checks for `openenv.yaml`)
+2. Prepare a custom build for Hugging Face Docker space (enables web interface)
+3. Upload to Hugging Face (ensuring you're logged in)
 
-⚙️ Installation
-bash
-git clone https://github.com/YOUR_USERNAME/customer-support-env.git
-cd customer-support-env
-pip install -r requirements.txt
-🚀 Run Locally
-Start the server (one terminal):
+### Prerequisites
 
-bash
-python api.py
-Test with the client (another terminal):
+- Authenticate with Hugging Face: The command will prompt for login if not already authenticated
 
-bash
-python client.py
-Expected output:
+### Options
 
-text
-Customer Query: I need a refund for my order #12345
+- `--directory`, `-d`: Directory containing the OpenEnv environment (defaults to current directory)
+- `--repo-id`, `-r`: Repository ID in format 'username/repo-name' (defaults to 'username/env-name' from openenv.yaml)
+- `--base-image`, `-b`: Base Docker image to use (overrides Dockerfile FROM)
+- `--private`: Deploy the space as private (default: public)
 
-Action: /refund -> Reward: 1.0
-  Stage: in_progress
-Action: /verify_purchase -> Reward: 1.0
-  Stage: in_progress
-Action: /process_refund -> Reward: 10.0
-  Stage: resolved
+### Examples
 
-Total reward: 12.0
-✅ Testing (Grader)
-Run automated programmatic checks (required for Round 1):
+```bash
+# Push to your personal namespace (defaults to username/env-name from openenv.yaml)
+openenv push
 
-bash
-python grader.py
-All tests should pass with green checkmarks. The grader verifies:
+# Push to a specific repository
+openenv push --repo-id my-org/my-env
 
-Health endpoint
+# Push with a custom base image
+openenv push --base-image ghcr.io/meta-pytorch/openenv-base:latest
 
-Reset structure
+# Push as a private space
+openenv push --private
 
-Step endpoint
+# Combine options
+openenv push --repo-id my-org/my-env --base-image custom-base:latest --private
+```
 
-State endpoint
+After deployment, your space will be available at:
+`https://huggingface.co/spaces/<repo-id>`
 
-Reward logic (correct, invalid, escalate)
+The deployed space includes:
+- **Web Interface** at `/web` - Interactive UI for exploring the environment
+- **API Documentation** at `/docs` - Full OpenAPI/Swagger interface
+- **Health Check** at `/health` - Container health monitoring
+- **WebSocket** at `/ws` - Persistent session endpoint for low-latency interactions
 
-Termination flag
+## Environment Details
 
-Multiple‑intent randomness
+### Action
+**CustomerSupportAction**: Contains a single field
+- `message` (str) - The message to echo back
 
-🧪 Train an Agent
-Train a Q‑learning agent to solve the environment:
+### Observation
+**CustomerSupportObservation**: Contains the echo response and metadata
+- `echoed_message` (str) - The message echoed back
+- `message_length` (int) - Length of the message
+- `reward` (float) - Reward based on message length (length × 0.1)
+- `done` (bool) - Always False for echo environment
+- `metadata` (dict) - Additional info like step count
 
-bash
-python train_agent.py
-After training, the Q‑table is saved as trained_q_table.pkl. The dashboard can then use it for autonomous demonstration.
+### Reward
+The reward is calculated as: `message_length × 0.1`
+- "Hi" → reward: 0.2
+- "Hello, World!" → reward: 1.3
+- Empty message → reward: 0.0
 
-🖥️ Dashboard
-Launch the Gradio web UI for manual/auto interaction:
+## Advanced Usage
 
-bash
-python dashboard.py
-Open http://localhost:7861 in your browser. Features:
+### Connecting to an Existing Server
 
-Manual action dropdown
+If you already have a Customer Support Env environment server running, you can connect directly:
 
-Auto mode (agent suggests next action using trained Q‑table)
+```python
+from customer_support_env import CustomerSupportEnv
 
-“Run Full Episode” with trained agent
+# Connect to existing server
+customer_support_envenv = CustomerSupportEnv(base_url="<ENV_HTTP_URL_HERE>")
 
-Live conversation log and reward display
+# Use as normal
+result = customer_support_envenv.reset()
+result = customer_support_envenv.step(CustomerSupportAction(message="Hello!"))
+```
 
-🐳 Docker & Deployment
-Build Docker image (local)
-bash
-docker build -t customer-support-env .
-docker run -p 8000:8000 customer-support-env
-OpenEnv‑compliant build & push (used by GitHub Actions)
-bash
-pip install openenv-core
-python -m openenv.cli build
-python -m openenv.cli validate --verbose
-python -m openenv.cli push   # deploys to Hugging Face Spaces
-GitHub Actions CI/CD
-The repository includes .github/workflows/deploy.yml that automatically builds and pushes to Hugging Face Spaces on every push to main.
-Secret required: HF_TOKEN (Hugging Face write token).
+Note: When connecting to an existing server, `customer_support_envenv.close()` will NOT stop the server.
 
-📂 Project Structure
-text
-customer-support-env/
-├── .github/workflows/
-│   └── deploy.yml          # GitHub Actions CI/CD
-├── server/
-│   └── app.py              # OpenEnv entry point (imports api.py)
-├── api.py                  # Main FastAPI server
-├── models.py               # Pydantic models (Action, Observation)
-├── client.py               # Test client
-├── grader.py               # Programmatic tests (required)
-├── dashboard.py            # Gradio UI
-├── train_agent.py          # Q‑learning training script
-├── trained_q_table.pkl     # Trained Q‑table (optional)
-├── requirements.txt        # Dependencies
-├── Dockerfile              # Container definition
-├── openenv.yaml            # OpenEnv manifest
-├── pyproject.toml          # Project metadata & dependencies
-├── README.md               # This file
-└── .gitignore
-🏆 Hackathon Submission
-This environment is submitted to Round 1 of the Meta PyTorch OpenEnv Hackathon 2026.
+### Using the Context Manager
 
-GitHub repository: https://github.com/YOUR_USERNAME/customer-support-env
+The client supports context manager usage for automatic connection management:
 
-Live Hugging Face Space: https://huggingface.co/spaces/YOUR_USERNAME/customer-support-env
+```python
+from customer_support_env import CustomerSupportAction, CustomerSupportEnv
 
-All requirements fulfilled:
+# Connect with context manager (auto-connects and closes)
+with CustomerSupportEnv(base_url="http://localhost:8000") as env:
+    result = env.reset()
+    print(f"Reset: {result.observation.echoed_message}")
+    # Multiple steps with low latency
+    for msg in ["Hello", "World", "!"]:
+        result = env.step(CustomerSupportAction(message=msg))
+        print(f"Echoed: {result.observation.echoed_message}")
+```
 
-✅ Mini‑RL environment with defined tasks, grader, and reward logic.
+The client uses WebSocket connections for:
+- **Lower latency**: No HTTP connection overhead per request
+- **Persistent session**: Server maintains your environment state
+- **Efficient for episodes**: Better for many sequential steps
 
-✅ Programmatic checks (grader.py).
+### Concurrent WebSocket Sessions
 
-✅ OpenEnv API (/reset, /step, /state).
+The server supports multiple concurrent WebSocket connections. To enable this,
+modify `server/app.py` to use factory mode:
 
-✅ Docker containerization.
+```python
+# In server/app.py - use factory mode for concurrent sessions
+app = create_app(
+    CustomerSupportEnvironment,  # Pass class, not instance
+    CustomerSupportAction,
+    CustomerSupportObservation,
+    max_concurrent_envs=4,  # Allow 4 concurrent sessions
+)
+```
 
-✅ Open source on GitHub.
+Then multiple clients can connect simultaneously:
 
-✅ Deployed to Hugging Face Spaces.
+```python
+from customer_support_env import CustomerSupportAction, CustomerSupportEnv
+from concurrent.futures import ThreadPoolExecutor
 
-👤 Author
-Bhavika vasule– GitHub
-Hackathon: Meta PyTorch OpenEnv Hackathon 2026 by Scaler School of Technology
-Date: April 2026
+def run_episode(client_id: int):
+    with CustomerSupportEnv(base_url="http://localhost:8000") as env:
+        result = env.reset()
+        for i in range(10):
+            result = env.step(CustomerSupportAction(message=f"Client {client_id}, step {i}"))
+        return client_id, result.observation.message_length
 
-License: MIT
+# Run 4 episodes concurrently
+with ThreadPoolExecutor(max_workers=4) as executor:
+    results = list(executor.map(run_episode, range(4)))
+```
 
-text
+## Development & Testing
 
-Replace `YOUR_USERNAME` with your actual GitHub username. After your workflow runs successfully, replace the Hugging Face Space URL placeholder with the real one. Good luck! 🚀
+### Direct Environment Testing
+
+Test the environment logic directly without starting the HTTP server:
+
+```bash
+# From the server directory
+python3 server/customer_support_env_environment.py
+```
+
+This verifies that:
+- Environment resets correctly
+- Step executes actions properly
+- State tracking works
+- Rewards are calculated correctly
+
+### Running Locally
+
+Run the server locally for development:
+
+```bash
+uvicorn server.app:app --reload
+```
+
+## Project Structure
+
+```
+customer_support_env/
+├── .dockerignore         # Docker build exclusions
+├── __init__.py            # Module exports
+├── README.md              # This file
+├── openenv.yaml           # OpenEnv manifest
+├── pyproject.toml         # Project metadata and dependencies
+├── uv.lock                # Locked dependencies (generated)
+├── client.py              # CustomerSupportEnv client
+├── models.py              # Action and Observation models
+└── server/
+    ├── __init__.py        # Server module exports
+    ├── customer_support_env_environment.py  # Core environment logic
+    ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
+    └── Dockerfile         # Container image definition
+```
