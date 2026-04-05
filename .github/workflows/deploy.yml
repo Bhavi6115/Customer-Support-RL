@@ -20,8 +20,10 @@ jobs:
       - name: Install uv
         run: pip install uv
 
-      - name: Install OpenEnv CLI
-        run: pip install openenv-core
+      - name: Install OpenEnv CLI and huggingface_hub
+        run: |
+          pip install openenv-core
+          pip install huggingface_hub
 
       - name: Authenticate with Hugging Face
         run: huggingface-cli login --token ${{ secrets.HF_TOKEN }}
