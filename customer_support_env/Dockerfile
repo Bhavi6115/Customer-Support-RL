@@ -8,7 +8,7 @@ COPY requirements.txt .
 # Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code
+
 COPY api.py models.py ./
 # If you have server/app.py, copy the server folder as well
 COPY server ./server
