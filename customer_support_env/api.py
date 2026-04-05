@@ -1,5 +1,6 @@
-from fastapi import FastAPI
 import gradio as gr
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import httpx
 import os
 import random
@@ -49,8 +50,16 @@ current_step = 0
 current_query = ""
 conversation_history = []
 
-# ---------- FastAPI app ----------
+# ---------- Create FastAPI app ----------
 app = FastAPI(title="Customer Support RL Environment")
+
+# CORS (optional but good)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ----- API Endpoints -----
 @app.post("/reset")
@@ -120,15 +129,16 @@ async def get_state():
 async def health_check():
     return {"status": "healthy"}
 
-# ---------- Gradio Dashboard ----------
+# ---------- Gradio Dashboard (uses the same API via internal HTTP client) ----------
 def interact(action, auto_mode=False):
-    with httpx.Client(timeout=30.0) as client:
+    # Use the internal API client to call the same FastAPI endpoints
+    with httpx.Client(base_url="http://localhost:8000", timeout=30.0) as client:
         if action == "Reset":
-            resp = client.post("http://localhost:8000/reset", json={})
+            resp = client.post("/reset", json={})
             state = resp.json()["observation"]
             return state["query"], "Reset complete. Ready.", "", ""
         else:
-            resp = client.post("http://localhost:8000/step", json={"action_value": action})
+            resp = client.post("/step", json={"action_value": action})
             data = resp.json()
             obs = data["observation"]
             reward = data["reward"]
@@ -147,14 +157,14 @@ def interact(action, auto_mode=False):
             return obs["query"], status, obs["history"], next_action
 
 def reset_and_agent_run():
-    with httpx.Client(timeout=30.0) as client:
-        client.post("http://localhost:8000/reset", json={})
+    with httpx.Client(base_url="http://localhost:8000", timeout=30.0) as client:
+        client.post("/reset", json={})
         total_reward = 0
         terminated = False
         step = 0
         history_log = []
         while not terminated and step < 10:
-            resp_state = client.get("http://localhost:8000/state")
+            resp_state = client.get("/state")
             state_data = resp_state.json()
             obs_for_key = {
                 "query": state_data.get("current_query", ""),
@@ -162,7 +172,7 @@ def reset_and_agent_run():
                 "history": "\n".join(state_data["conversation_history"])
             }
             action = agent_choose_action(obs_for_key)
-            step_resp = client.post("http://localhost:8000/step", json={"action_value": action})
+            step_resp = client.post("/step", json={"action_value": action})
             step_data = step_resp.json()
             reward = step_data["reward"]
             total_reward += reward
@@ -172,7 +182,7 @@ def reset_and_agent_run():
         history_log.append(f"\n## 🎉 **Total Reward: {total_reward}**")
         return "\n".join(history_log)
 
-# Build Gradio interface
+# Build Gradio UI
 with gr.Blocks(title="Customer Support RL Environment", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🤖 Customer Support RL Environment")
     gr.Markdown("### Train an AI to resolve customer issues using Reinforcement Learning")
@@ -201,7 +211,7 @@ with gr.Blocks(title="Customer Support RL Environment", theme=gr.themes.Soft()) 
     auto_run_btn.click(reset_and_agent_run, inputs=[], outputs=[auto_output])
     demo.load(lambda: interact("Reset", False), outputs=[output_query, output_reward, output_history, output_next_action])
 
-# Mount Gradio at root (official method)
+# Mount Gradio onto FastAPI at the root
 app = gr.mount_gradio_app(app, demo, path="/")
 
 # ---------- Run ----------
