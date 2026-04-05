@@ -4,13 +4,17 @@ WORKDIR /app
 
 # Copy requirements first for better caching
 COPY requirements.txt .
+
+# Install dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all application code
+# Copy the rest of the application code
 COPY api.py models.py ./
+# If you have server/app.py, copy the server folder as well
+COPY server ./server
 
-# Expose port
+# Expose the port your app runs on
 EXPOSE 8000
 
-# Run the server
+# Command to run the FastAPI server
 CMD ["python", "api.py"]
