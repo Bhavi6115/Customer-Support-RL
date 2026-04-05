@@ -17,13 +17,19 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install OpenEnv CLI
-        run: pip install openenv-core
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install OpenEnv CLI and huggingface_hub
+        run: |
+          pip install openenv-core
+          pip install huggingface_hub
 
       - name: Authenticate with Hugging Face
-        run: huggingface-cli login --token ${{ secrets.HF_TOKEN }}
+        run: python -c "from huggingface_hub import login; login(token='${{ secrets.HF_TOKEN }}')"
 
       - name: Build and Push to Hugging Face
         run: |
+          cd customer_support_env
           python -m openenv.cli build
           python -m openenv.cli push
