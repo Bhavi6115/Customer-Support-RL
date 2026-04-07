@@ -14,7 +14,7 @@ COPY api.py models.py ./
 COPY server ./server
 
 # Expose the port your app runs on
-EXPOSE 8000
+EXPOSE 7680
 
 # Command to run the FastAPI server
 CMD ["python", "api.py"]
