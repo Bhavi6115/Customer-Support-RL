@@ -8,7 +8,7 @@ import pickle
 import numpy as np
 from models import Action, Observation
 
-# ---------- Load Trained Agent ----------
+# ---------- Load Trained Agent (optional) ----------
 trained_q_table = None
 actions = ["/refund", "/verify_purchase", "/process_refund", "/escalate", "/invalid"]
 
@@ -50,10 +50,9 @@ current_step = 0
 current_query = ""
 conversation_history = []
 
-# ---------- Create FastAPI app ----------
+# ---------- FastAPI app ----------
 app = FastAPI(title="Customer Support RL Environment")
 
-# CORS (optional but good)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -129,10 +128,9 @@ async def get_state():
 async def health_check():
     return {"status": "healthy"}
 
-# ---------- Gradio Dashboard (uses the same API via internal HTTP client) ----------
+# ---------- Gradio Dashboard ----------
 def interact(action, auto_mode=False):
-    # Use the internal API client to call the same FastAPI endpoints
-    with httpx.Client(base_url="http://localhost:8000", timeout=30.0) as client:
+    with httpx.Client(base_url="http://localhost:7860", timeout=30.0) as client:
         if action == "Reset":
             resp = client.post("/reset", json={})
             state = resp.json()["observation"]
@@ -157,7 +155,7 @@ def interact(action, auto_mode=False):
             return obs["query"], status, obs["history"], next_action
 
 def reset_and_agent_run():
-    with httpx.Client(base_url="http://localhost:8000", timeout=30.0) as client:
+    with httpx.Client(base_url="http://localhost:7860", timeout=30.0) as client:
         client.post("/reset", json={})
         total_reward = 0
         terminated = False
@@ -211,11 +209,11 @@ with gr.Blocks(title="Customer Support RL Environment", theme=gr.themes.Soft()) 
     auto_run_btn.click(reset_and_agent_run, inputs=[], outputs=[auto_output])
     demo.load(lambda: interact("Reset", False), outputs=[output_query, output_reward, output_history, output_next_action])
 
-# Mount Gradio onto FastAPI at the root
+# Mount Gradio at root – this should work
 app = gr.mount_gradio_app(app, demo, path="/")
 
 # ---------- Run ----------
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 7680))
+    port = int(os.environ.get("PORT", 7860))
     uvicorn.run(app, host="0.0.0.0", port=port)
